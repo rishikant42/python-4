@@ -408,3 +408,109 @@ class TestUtils(unittest.TestCase):
             name="mock-pod-1", namespace=self.test_namespace, body={})
         app_api.delete_namespaced_deployment(
             name="mock", namespace=self.test_namespace, body={})
+
+    def test_create_pod_from_dict(self):
+        """
+        Should be able to create a pod.
+        """
+        k8s_client = client.api_client.ApiClient(configuration=self.config)
+        core_api = client.CoreV1Api(k8s_client)
+        pod_dict = {
+            "apiVersion": "v1",
+            "kind": "Pod",
+            "metadata": {
+                "name": "nginx-app-pod",
+                "labels": {"app": "nginx"}
+            },
+            "spec": {
+                "containers": [
+                    {
+                        "name": "nginx",
+                        "image": "nginx:1.15.4",
+                        "ports": [{"containerPort": 80}]
+                    }
+                ]
+            }
+        }
+        utils.create_from_dict(k8s_client, pod_dict)
+
+        pod = core_api.read_namespaced_pod(name="nginx-app-pod",
+                                           namespace="default")
+        self.assertIsNotNone(pod)
+        core_api.delete_namespaced_pod(
+            name="nginx-app-pod", namespace="default",
+            body={})
+
+    def test_create_general_list_from_dict(self):
+        """
+        Should be able to create a service and a deployment
+        from a kind: List dict file
+        """
+        k8s_client = client.api_client.ApiClient(configuration=self.config)
+        core_api = client.CoreV1Api(k8s_client)
+        ext_api = client.AppsV1Api(k8s_client)
+
+        service_dict = {
+            "kind": "Service",
+            "apiVersion": "v1",
+            "metadata": {
+                "name": "list-service-test-2"
+            },
+            "spec": {
+                "selector": {
+                    "app": "TestApp"
+                },
+                "ports": [
+                    {
+                        "protocol": "TCP",
+                        "port": 80,
+                        "targetPort": 9376
+                    }
+                ]
+            }
+        }
+
+        deploy_dict = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {
+                "name": "list-deployment-test-2",
+                "labels": {"app": "nginx"}
+            },
+            "spec": {
+                "replicas": 1,
+                "selector": {"matchLabels": {"app": "nginx"}},
+                "template": {
+                    "metadata": {"labels": {"app": "nginx"}},
+                    "spec": {
+                        "containers": [
+                            {
+                                "name": "nginx",
+                                "image": "nginx:1.15.4",
+                                "ports": [{"containerPort": 80}]
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+        list_dict = {
+            "apiVersion": "v1",
+            "kind": "List",
+            "items": [
+                service_dict,
+                deploy_dict,
+            ]
+        }
+        utils.create_from_dict(k8s_client, list_dict)
+
+        svc = core_api.read_namespaced_service(name="list-service-test-2",
+                                               namespace="default")
+        self.assertIsNotNone(svc)
+        dep = ext_api.read_namespaced_deployment(name="list-deployment-test-2",
+                                                 namespace="default")
+        self.assertIsNotNone(dep)
+        core_api.delete_namespaced_service(name="list-service-test-2",
+                                           namespace="default", body={})
+        ext_api.delete_namespaced_deployment(name="list-deployment-test-2",
+                                             namespace="default", body={})
